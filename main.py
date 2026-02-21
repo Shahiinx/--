@@ -16,7 +16,7 @@ async def start_bot():
     print("[INFO]: جاري تشغيل البوت")
     await bot.start()
     init_db()
-    # await bot.send_message(OWNER[0], "**≭︰تم تشغيل البوت **")
+    # await bot.send_message(OWNER, "**≭︰تم تشغيل البوت **")
     await idle()
 
 

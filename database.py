@@ -77,7 +77,7 @@ def get_role(chat_id: int, user_id: int) -> int:
     result = cursor.fetchone()
     conn.close()
 
-    return result[0] if result else 9  # 8 = العضو العادي
+    return result[0] if result else 9  # 9 = العضو العادي
 
 
 def remove_role(chat_id: int, user_id: int):
