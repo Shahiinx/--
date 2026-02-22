@@ -121,3 +121,85 @@ def check_group(chat_id: int) -> str:
 
     return "تم تفعيل البوت بنجاح"
 
+
+def remove_premium(chat_id: int) -> int:
+    """
+    مسح جميع المميزين (role_level=8) داخل جروب محدد
+    وتعيد عدد الأشخاص الذين تم مسحهم
+    """
+    conn = sqlite3.connect(DB_NAME)
+    cursor = conn.cursor()
+
+    # أولاً نحسب عدد المميزين قبل الحذف
+    cursor.execute("""
+        SELECT COUNT(*) FROM roles
+        WHERE chat_id=? AND role_level=8
+    """, (chat_id,))
+    result = cursor.fetchone()
+    count = result[0] if result else 0
+
+    # بعدين نمسحهم
+    cursor.execute("""
+        DELETE FROM roles
+        WHERE chat_id=? AND role_level=8
+    """, (chat_id,))
+
+    conn.commit()
+    conn.close()
+
+    return count
+
+
+# =====================
+# دالة جلب أعضاء حسب الرتبة
+# =====================
+def get_members_by_role(chat_id: int, role_name: str) -> list:
+    """
+    ترجع قائمة user_id لكل الأعضاء في الجروب الذين يحملون رتبة معينة
+    role_name: اسم الرتبة سواء المفرد أو الجمع مثل "مميز" أو "المميزين"
+    """
+    # جدول الرتب الأساسي
+    Roles = {
+        "عضو": 9,
+        "مميز": 8,
+        "ادمن": 7,
+        "مدير": 6,
+        "منشئ": 5,
+        "منشئ أساسي": 4,
+        "مالك": 3,
+        "مالك أساسي": 2,
+        "مطور": 1,
+        "مطور أساسي": 0
+    }
+
+    # قاموس الاسم الجمعي → الاسم الأساسي
+    ROLE_PLURALS = {
+        "الأعضاء": "عضو",
+        "المميزين": "مميز",
+        "الادمنية": "ادمن",
+        "المدراء": "مدير",
+        "المنشئين": "منشئ",
+        "المنشئين الأساسيين": "منشئ أساسي",
+        "المالكين": "مالك",
+        "المالكين الأساسيين": "مالك أساسي",
+        "المطورين": "مطور",
+        "المطورين الأساسيين": "مطور أساسي"
+    }
+
+    # تحويل الاسم الجمعي إلى الاسم الأساسي إذا تم تمريره
+    role_name = ROLE_PLURALS.get(role_name, role_name)
+
+    role_level = Roles.get(role_name)
+    if role_level is None:
+        return []  # الرتبة غير موجودة
+
+    conn = sqlite3.connect(DB_NAME)
+    cursor = conn.cursor()
+    cursor.execute(
+        "SELECT user_id FROM roles WHERE chat_id=? AND role_level=?",
+        (chat_id, role_level)
+    )
+    rows = cursor.fetchall()
+    conn.close()
+
+    return [user_id for (user_id,) in rows]

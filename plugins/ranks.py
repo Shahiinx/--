@@ -1,5 +1,7 @@
 from pyrogram import Client, filters
-from database import get_role, set_role, remove_role
+from pyrogram.errors import ChatAdminRequired
+
+from database import get_role, set_role, remove_role, remove_premium, get_members_by_role
 from pyrogram.types import InlineKeyboardMarkup, InlineKeyboardButton
 from pyrogram.types import ChatPrivileges
 
@@ -30,14 +32,31 @@ ROLE_COMMANDS = {
     "مطور أساسي": 0
 }
 
+ROLE_PLURALS = {
+    "مميز": "المميزين",
+    "ادمن": "الادمنية",
+    "مدير": "المدراء",
+    "منشئ": "المنشئين",
+    "منشئ أساسي": "المنشئين الأساسيين",
+    "مالك": "المالكين",
+    "مالك أساسي": "المالكين الأساسيين",
+    "مطور": "المطورين",
+    "مطور أساسي": "المطورين الأساسيين",
+}
+
+VALID_ROLES = [
+    "عضو", "مميز", "ادمن", "مدير", "منشئ", "منشئ أساسي",
+    "مالك", "مالك أساسي", "مطور", "مطور أساسي",
+    "الأعضاء", "المميزين", "الادمنية", "المدراء",
+    "المنشئين", "المنشئين الأساسيين", "المالكين", "المالكين الأساسيين",
+    "المطورين", "المطورين الأساسيين"
+]
+
 
 # 🔹 توحيد جلب الرتبة (الافتراضي عضو)
 def get_user_role(chat_id, user_id):
     role = get_role(chat_id, user_id)
     return 9 if role is None else role
-
-
-admin_sessions = {}
 
 
 # أمر يعرض رتبتك
@@ -420,27 +439,80 @@ async def demote_admin(client, message):
     #     return await message.reply_text("⚠️ لا يمكنك تنزيل نفسك.")
 
     # تنزيل كل الصلاحيات
-    await client.promote_chat_member(
-        chat_id,
-        target.id,
-        privileges=ChatPrivileges(
-            can_change_info=False,
-            can_invite_users=False,
-            can_delete_messages=False,
-            can_promote_members=False,
-            can_restrict_members=False,
-            can_pin_messages=False,
-            can_manage_video_chats=False,
-            can_edit_messages=False,
-            can_post_messages=False,
-            can_manage_chat=False,
-        ),
-    )
+    try:
+        await client.promote_chat_member(
+            chat_id,
+            target.id,
+            privileges=ChatPrivileges(
+                can_change_info=False,
+                can_invite_users=False,
+                can_delete_messages=False,
+                can_promote_members=False,
+                can_restrict_members=False,
+                can_pin_messages=False,
+                can_manage_video_chats=False,
+                can_edit_messages=False,
+                can_post_messages=False,
+                can_manage_chat=False,
+            ),
+        )
+
+        await message.reply_text(
+            f"""
+            • المستخدم ← {target.mention}
+    • تم تنزيله من المشرفين
+            
+            """
+        )
+    except ChatAdminRequired:
+        return await message.reply_text(
+            "**لست انا من قام برفعه**"
+        )
+
+
+@Client.on_message(filters.group & filters.text)
+async def list_role_members(client, message):
+    chat_id = message.chat.id
+    text = message.text.strip()  # نص الرسالة المستخدم يكتب اسم الرتبة
+    if text not in VALID_ROLES:
+        return  # نتجاهل أي رسالة غير اسم رتبة
+    members = get_members_by_role(chat_id, text)
+    if not members:
+        return await message.reply_text(f"⚠️ لا يوجد أعضاء بالرتبة: {text}")
+
+    # تحويل user_id إلى يوزرات أو mentions
+    mentions = []
+    for user_id in members:
+        try:
+            user = await client.get_users(user_id)
+            if user.username:
+                mentions.append(f"@{user.username}")
+            else:
+                mentions.append(f"[{user.first_name}](tg://user?id={user.id})")
+        except:
+            continue
+
+    # جلب الاسم الجمعي للرتبة إذا موجود، أو نستخدم الاسم الأصلي
+    role_plural = ROLE_PLURALS.get(text, text)
 
     await message.reply_text(
-        f"""
-        • المستخدم ← {target.mention}
-• تم تنزيله من المشرفين
-        
-        """
+        f"📌 قائمة {role_plural}:\n\n" + "\n".join(mentions),
+        disable_web_page_preview=True
     )
+
+
+@Client.on_message(filters.group & filters.regex(r"^مسح المميزين$"))
+async def DeletePremiumUsers(client, message):
+    chat_id = message.chat.id
+    user_id = message.from_user.id
+    sender_role = get_role(chat_id, user_id)
+
+    if sender_role > 5:
+        return await message.reply_text("⚠️ يجب أن تكون ادمن على الأقل.")
+
+    total_removed = remove_premium(chat_id)
+    if total_removed > 0:
+        await message.reply_text("• تم مسح المميزين")
+    else:
+        return await message.reply_text("• لا يوجد مميزين لمسحهم")
+    # await message.reply_text(f"✅ تم مسح {total_removed} من المميزين من قاعدة البيانات")
