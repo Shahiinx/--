@@ -67,6 +67,7 @@ async def rtbth(client, message):
 
     await message.reply_text(f"• رتبة المستخدم ← **{role_name}**")
 
+
 role_pattern = "|".join(map(lambda x: x.replace(" ", r"\s"), ROLE_COMMANDS.keys()))
 
 
@@ -217,9 +218,6 @@ async def demote_all(client, message):
     )
 
 
-
-
-
 # رفع مشرف
 @Client.on_message(filters.group & filters.regex(r"^رفع مشرف(?:\s+(.+))?$"))
 async def promote_menu(client, message):
@@ -282,7 +280,7 @@ async def handle_perm_buttons(client, callback):
     if not member.privileges:
         await client.promote_chat_member(
             chat_id, user_id,
-            privileges=ChatPrivileges(can_manage_chat=True, can_manage_video_chats=True)
+            privileges=ChatPrivileges(can_manage_chat=False, can_manage_video_chats=True)
         )
         member = await client.get_chat_member(chat_id, user_id)
 
@@ -290,6 +288,26 @@ async def handle_perm_buttons(client, callback):
 
     if action == "close":
         return await callback.message.delete()
+
+    changes = {}
+    if action == "can_change_info":
+        changes["can_change_info"] = not perms.can_change_info
+        message_text = "• تم صلاحيه تغيير المعلومات" if not perms.can_promote_members else "• تم تعطيل صلاحيه تغيير المعلومات"
+    elif action == "can_pin_messages":
+        changes["can_pin_messages"] = not perms.can_pin_messages
+        message_text = "• تم تفعيل صلاحيه التثبيت" if not perms.can_promote_members else "• تم تعطيل صلاحيه التثبيت"
+    elif action == "can_restrict_members":
+        changes["can_restrict_members"] = not perms.can_restrict_members
+        message_text = "• تم تفعيل صلاحيه الحظر" if not perms.can_promote_members else "• تم تعطيل صلاحيه صلاحيه الحظر"
+    elif action == "can_invite_users":
+        changes["can_invite_users"] = not perms.can_invite_users
+        message_text = "• تم تفعيل صلاحيه دعوه المستخدمين" if not perms.can_promote_members else "• تم تعطيل صلاحيه دعوه المستخدمين"
+    elif action == "can_delete_messages":
+        changes["can_delete_messages"] = not perms.can_delete_messages
+        message_text = "• تم تفعيل صلاحيه مسح الرسائل" if not perms.can_promote_members else "• تم تعطيل صلاحيه مسح الرسائل"
+    elif action == "can_promote_members":
+        changes["can_promote_members"] = not perms.can_promote_members
+        message_text = "• تم تفعيل صلاحيه اضافه مشرفين" if not perms.can_promote_members else "• تم تعطيل صلاحيه اضافه مشرفين"
 
     # قلب الصلاحية المطلوبة
     kwargs = {
@@ -311,6 +329,8 @@ async def handle_perm_buttons(client, callback):
             await callback.message.edit_reply_markup(new_markup)
     except pyrogram.errors.MessageNotModified:
         pass
+
+    await callback.answer(message_text, show_alert=True)
 
 
 # بناء كيبورد الصلاحيات
@@ -371,4 +391,54 @@ async def GetMyPrem(client, message):
     await message.reply_text(text)
 
 
+@Client.on_message(filters.group & filters.regex(r"^تنزيل مشرف(?:\s+(.+))?$"))
+async def demote_admin(client, message):
+    chat_id = message.chat.id
+    admin_id = message.from_user.id
+    sender_role = get_user_role(chat_id, admin_id)
 
+    # تحقق من صلاحية الشخص الذي ينفذ الأمر
+    if sender_role > 4:  # يجب أن يكون ادمن على الأقل
+        return await message.reply_text("⚠️ يجب أن تكون ادمن على الأقل لتنزيل مشرف.")
+
+    # تحديد الهدف
+    target = None
+    if message.reply_to_message:
+        target = message.reply_to_message.from_user
+    elif message.matches and message.matches[0].group(1):
+        try:
+            target = await client.get_users(message.matches[0].group(1).replace("@", ""))
+        except Exception:
+            return await message.reply_text("⚠️ لم يتم العثور على المستخدم.")
+    else:
+        return await message.reply_text("⚠️ لازم ترد على شخص أو تكتب يوزره.")
+
+    # # منع تنزيل نفسك
+    # if target.id == admin_id:
+    #     return await message.reply_text("⚠️ لا يمكنك تنزيل نفسك.")
+
+    # تنزيل كل الصلاحيات
+    await client.promote_chat_member(
+        chat_id,
+        target.id,
+        privileges=ChatPrivileges(
+            can_change_info=False,
+            can_invite_users=False,
+            can_delete_messages=False,
+            can_promote_members=False,
+            can_restrict_members=False,
+            can_pin_messages=False,
+            can_manage_video_chats=False,
+            can_edit_messages=False,
+            can_post_messages=False,
+            can_manage_chat=False,
+        ),
+    )
+
+    await message.reply_text(
+        f"""
+        • المستخدم ← {target.mention}
+• تم تنزيله من المشرفين
+        
+        """
+    )
