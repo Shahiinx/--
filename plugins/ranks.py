@@ -264,6 +264,7 @@ async def open_permissions(client, callback):
 # التعامل مع أزرار الصلاحيات
 @Client.on_callback_query(filters.regex("^perm:"))
 async def handle_perm_buttons(client, callback):
+    global message_text
     _, action, user_id = callback.data.split(":")
     user_id = int(user_id)
     chat_id = callback.message.chat.id
@@ -331,6 +332,7 @@ async def handle_perm_buttons(client, callback):
         pass
 
     await callback.answer(message_text, show_alert=True)
+    return None
 
 
 # بناء كيبورد الصلاحيات

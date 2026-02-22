@@ -91,3 +91,33 @@ def remove_role(chat_id: int, user_id: int):
     conn.close()
 
 
+#  Groups Functions
+
+
+def check_group(chat_id: int) -> str:
+    """
+    التحقق إذا الجروب موجود مسبقاً في قاعدة البيانات
+    - إذا موجود: ترجع "تم التفعيل مسبقاً"
+    - إذا جديد: تضيفه وتعيد "تم التفعيل"
+    """
+    conn = sqlite3.connect(DB_NAME)
+    cursor = conn.cursor()
+
+    # تحقق إذا الجروب موجود في جدول الحماية
+    cursor.execute("SELECT chat_id FROM protections WHERE chat_id=?", (chat_id,))
+    result = cursor.fetchone()
+
+    if result:
+        conn.close()
+        return "• تم تفعيلها مسبقا"
+
+    # إذا الجروب جديد، أضفه ببيانات افتراضية
+    cursor.execute("""
+                   INSERT INTO protections (chat_id)
+                   VALUES (?)
+                   """, (chat_id,))
+    conn.commit()
+    conn.close()
+
+    return "تم تفعيل البوت بنجاح"
+
