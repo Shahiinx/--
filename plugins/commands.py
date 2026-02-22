@@ -70,6 +70,20 @@ async def ShowCommands(client, message):
 @Client.on_callback_query(filters.regex(r"^(m[1-6]|dev|fun|games)$"))
 async def menu_handler(client, callback):
     global keyboard
+    sender = callback.from_user
+    chat = callback.message.chat
+
+    sender_role = get_role(chat.id, sender.id)
+    if sender_role is None:
+        sender_role = 9
+
+    # فقط ادمن (7) وأعلى
+    if sender_role > 7:
+        await callback.answer(
+            "⚠️ يجب أن تكون ادمن لاستخدام هذه الامر.",
+            show_alert=True
+        )
+        return
     data = callback.data
 
     await callback.answer()
@@ -355,3 +369,53 @@ async def menu_handler(client, callback):
         f"**{texts.get(data)}**",
         reply_markup=keyboard
     )
+
+
+@Client.on_message(filters.group & filters.regex(r"^(قفل|فتح) (.+)$"))
+async def handle_locks(client, message):
+
+    sender = message.from_user
+    chat = message.chat
+    text = message.text.strip()
+
+    sender_role = get_role(chat.id, sender.id)
+    if sender_role is None:
+        sender_role = 9
+
+    # فقط ادمن (7) وأعلى
+    if sender_role > 7:
+        await message.reply_text("⚠️ يجب أن تكون ادمن على الأقل.")
+        return
+
+    action, lock_name = text.split(" ", 1)
+    lock_key = LOCKS.get(lock_name)
+
+    if not lock_key:
+        await message.reply_text("⚠️ أمر غير معروف.")
+        return
+
+    # حالة قفل الكل
+    if lock_key == "all":
+
+        if action == "قفل":
+            for key in LOCKS.values():
+                if key != "all":  # ما نقفل الشات نفسه
+                    set_lock(chat.id, key)
+            await message.reply_text("🔒 تم قفل جميع الاوامر.")
+
+        else:
+            for key in LOCKS.values():
+                if key != "all":
+                    remove_lock(chat.id, key)
+            await message.reply_text("🔓 تم فتح جميع الاوامر.")
+
+        return
+
+    # قفل عادي
+    if action == "قفل":
+        set_lock(chat.id, lock_key)
+        await message.reply_text(f"🔒 تم قفل {lock_name}")
+
+    else:
+        remove_lock(chat.id, lock_key)
+        await message.reply_text(f"🔓 تم فتح {lock_name}")
